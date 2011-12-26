@@ -1,7 +1,6 @@
 # Purpose : Provide a common interface to a variety of rendering formats
 # Author  : Matt Wilson - Original version by John Alden
 # Created : March 2006
-# CVS     : $Header: /home/cvs/software/cvsroot/any_renderer/lib/Any/Renderer.pm,v 1.14 2006/09/04 12:15:52 johna Exp $
 
 package Any::Renderer;
 
@@ -10,7 +9,7 @@ use File::Find;
 use File::Spec;
 
 use vars qw($VERSION %Formats @LowPriProviders);
-$VERSION = sprintf"%d.%03d", q$Revision: 1.14 $ =~ /: (\d+)\.(\d+)/;
+$VERSION = '1.15_01';
 
 #Modules that provide an extensible set of formats that could clash with A::R native providers
 @LowPriProviders = qw(Data::Serializer);
@@ -120,7 +119,11 @@ sub available_formats
 			$module = _load_module($file);     
 			$func = $module->can( "available_formats" );
 		};
-		warn($@) if($@); #Warn if there are compilation problems with backend modules
+                {
+                    no warnings;
+                    no strict 'refs';
+                    ${__PACKAGE__."::_FailedBackends"}{backend}{$file} = $@ if($@);
+                }
 		
 		next unless $func;
 		
@@ -136,6 +139,24 @@ sub available_formats
 
 	return [ sort keys %Formats ];
 }
+
+
+sub failed_backends {
+    available_formats();
+    no warnings;
+    no strict 'refs';
+    my @failed_backends = keys %{${__PACKAGE__."::_FailedBackends"}{backend}};
+    \@failed_backends;
+}
+
+
+sub failed_backend_message {
+    my $file = shift;
+    no warnings;
+    no strict 'refs';
+    ${__PACKAGE__."::_FailedBackends"}{backend}{$file}; 
+}
+
 
 #Loads an Any::Renderer backend (safely)
 sub _load_module {
@@ -166,6 +187,8 @@ Any::Renderer - Common API for modules that convert data structures into strings
 	$string = $renderer->render ( $structure );
 	$bool = Any::Renderer::requires_template ( $format );
 	$list_ref = Any::Renderer::available_formats ();
+        $list_ref = Any::Renderer::failed_backends ();
+        $string = Any::Renderer::failed_backend_message($backend_name);
 
 =head1 DESCRIPTION
 
